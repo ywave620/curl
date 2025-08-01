@@ -340,6 +340,7 @@ struct OperationConfig {
   BIT(rm_partial);                /* on error, remove partially written output
                                      files */
   BIT(skip_existing);
+  BIT(preserve_connection);     /* keep connection alive after request */
 };
 
 struct GlobalConfig {

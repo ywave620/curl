@@ -54,6 +54,10 @@
 #include <uv.h>
 #endif
 
+#ifndef UNDER_CE
+#include <signal.h>
+#endif
+
 #include "tool_cfgable.h"
 #include "tool_cb_dbg.h"
 #include "tool_cb_hdr.h"
@@ -95,6 +99,49 @@ CURL_EXTERN CURLcode curl_easy_perform_ev(CURL *easy);
 #endif
 
 #include "memdebug.h" /* keep this as LAST include */
+
+/* Global flag for preserve connection signal handling */
+static volatile bool preserve_connection_interrupted = false;
+
+#ifndef UNDER_CE
+static void preserve_connection_signal_handler(int signum)
+{
+  (void)signum; /* unused parameter */
+  preserve_connection_interrupted = true;
+}
+
+/* Function to wait for SIGINT when preserve connection is enabled */
+static void preserve_connection_wait(struct GlobalConfig *global)
+{
+  struct sigaction old_sigint_action;
+  struct sigaction sigint_action;
+  
+  /* Set up signal handler for SIGINT (Ctrl+C) */
+  sigint_action.sa_handler = preserve_connection_signal_handler;
+  sigemptyset(&sigint_action.sa_mask);
+  sigint_action.sa_flags = 0;
+  
+  if(sigaction(SIGINT, &sigint_action, &old_sigint_action) == 0) {
+    preserve_connection_interrupted = false;
+    
+    /* Display message to user */
+    fprintf(stderr, "Connection preserved. Press Ctrl+C to exit.\n");
+    
+    /* Wait for signal */
+    while(!preserve_connection_interrupted) {
+      /* Small sleep to avoid busy waiting */
+      usleep(100000); /* 100ms */
+    }
+    
+    /* Restore original signal handler */
+    sigaction(SIGINT, &old_sigint_action, NULL);
+    
+    fprintf(stderr, "\nExiting due to user interrupt.\n");
+  } else {
+    errorf(global, "Failed to set up signal handler for preserve-connection");
+  }
+}
+#endif
 
 #ifdef CURL_CA_EMBED
 #ifndef CURL_DECLARED_CURL_CA_EMBED
@@ -2203,7 +2250,6 @@ static CURLcode run_all_transfers(struct GlobalConfig *global,
   global->noprogress = orig_noprogress;
   global->isatty = orig_isatty;
 
-
   return result;
 }
 
@@ -2329,6 +2375,25 @@ CURLcode operate(struct GlobalConfig *global, int argc, argv_item_t argv[])
               if(r2 && !result)
                 result = r2;
             }
+
+#ifndef UNDER_CE
+            /* Check if preserve connection is enabled for any operation */
+            if(!result) {
+              struct OperationConfig *config = global->first;
+              bool should_preserve = false;
+              
+              while(config && !should_preserve) {
+                if(config->preserve_connection) {
+                  should_preserve = true;
+                }
+                config = config->next;
+              }
+              
+              if(should_preserve) {
+                preserve_connection_wait(global);
+              }
+            }
+#endif
           }
 
           curl_share_cleanup(share);

@@ -238,6 +238,7 @@ static const struct LongShort aliases[]= {
   {"post302",                    ARG_BOOL, ' ', C_POST302},
   {"post303",                    ARG_BOOL, ' ', C_POST303},
   {"preproxy",                   ARG_STRG, ' ', C_PREPROXY},
+  {"preserve-connection",        ARG_BOOL, ' ', C_PRESERVE_CONNECTION},
   {"progress-bar",               ARG_BOOL, '#', C_PROGRESS_BAR},
   {"progress-meter",             ARG_BOOL|ARG_NO, ' ', C_PROGRESS_METER},
   {"proto",                      ARG_STRG, ' ', C_PROTO},
@@ -1931,6 +1932,9 @@ static ParameterError opt_bool(struct OperationConfig *config,
     break;
   case C_POST303: /* --post303 */
     config->post303 = toggle;
+    break;
+  case C_PRESERVE_CONNECTION: /* --preserve-connection */
+    config->preserve_connection = toggle;
     break;
   case C_SOCKS5_GSSAPI_NEC: /* --socks5-gssapi-nec */
     config->socks5_gssapi_nec = toggle;
